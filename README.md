@@ -49,7 +49,8 @@ YOLO 기반 결함 검출 및 이미지 전처리 도구입니다.
 ## 🎯 사용 예시
 
 ### FilterApplicationTool
-![Filter Application Example](filter_application_example.png)
+<img width="1918" alt="image" src="https://github.com/user-attachments/assets/0dda8c74-cf8c-4ebd-a15a-80e84d611e18">
+
 *다양한 필터를 적용한 결함 이미지 분석 예시*
 
 필터 종류:
