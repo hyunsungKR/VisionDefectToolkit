@@ -1,38 +1,82 @@
-# VisionDefectToolkit
+# 🔍 VisionDefectToolkit
 
-VisionDefectToolkit은 머신비전에서 결함을 검출하고 분석하는 데 도움을 주는 다양한 도구를 제공하는 Python 기반 툴킷입니다. 이 툴킷은 사용자 인터페이스(UI)를 통해 결함 감지와 이미지 전처리를 직관적으로 수행할 수 있도록 설계되었습니다. 이 프로젝트는 PyQt6와 YOLO 모델을 이용해 실시간으로 결함 이미지를 표시하고 분석하는 기능을 포함하며, 다양한 필터와 설정을 통해 최적의 전처리 파라미터를 찾는 과정을 지원합니다.
+VisionDefectToolkit은 머신비전 기반의 결함 검출 및 분석을 위한 종합 도구 모음입니다. PyQt6 기반의 직관적인 UI를 통해 이미지 전처리부터 결함 검출까지 원스톱으로 처리할 수 있습니다.
 
-## 파일 설명
+## 📁 프로젝트 구조
 
-### ImageViewerApp.py
-이 파일은 이미지 파일들을 불러와 결함을 시각적으로 검토하고, Ground Truth 데이터와 YOLO 모델의 검출 결과를 비교하는 인터페이스를 제공합니다. 다음과 같은 주요 기능이 포함되어 있습니다:
-- **이미지 전처리**: CLAHE, 가우시안 블러, Canny Edge 등 다양한 필터를 적용하여 이미지의 노이즈를 줄이거나 대비를 높였을 때 검출 성능을 개선할 수 있을지 선택 가능하도록 실시간으로 바운딩 박스의 정보가 바뀜.
-- **결함 검출**: YOLO 모델을 통해 결함 영역을 예측하고 Ground Truth 데이터와 비교해 매칭 정확도를 분석할 수 있습니다.
-- **UI 인터페이스**: PyQt6로 제작된 직관적인 UI를 통해 슬라이더와 체크박스로 설정을 조정하며 실시간으로 검출 결과를 확인할 수 있습니다.
+```
+VisionDefectToolkit/
+├── FilterApplicationTool/
+│   ├── filters/
+│   │   ├── base_filter.py
+│   │   ├── edge_filters.py
+│   │   └── frequency_filters.py
+│   ├── model.py
+│   ├── view.py
+│   └── controller.py
+├── ImageViewerTool/
+│   ├── ImageViewer_preprocess_v0.1.py
+│   └── ImageViewer_simple.py
+└── requirements.txt
+```
 
-  
-### **FilterApplicationTool.py**
-이 파일은 이미지에 다양한 필터를 적용하여 결함을 보다 명확히 시각화하는 데 도움을 주는 인터페이스를 제공합니다.
+## 🛠 주요 기능
 
-**주요 기능:**
-- **다중 필터 미리보기:** 사용자가 이미지를 불러오면, Original, Gaussian Blur, Median Blur, Laplacian, Sobel, Scharr, Prewitt, Canny Edge 등 다양한 필터가 적용된 결과를 5x2 그리드 레이아웃으로 한눈에 확인할 수 있습니다.
-- **필터 이름 표시:** 각 필터 미리보기 이미지 하단에 필터 이름이 표시되어 사용자가 필터 결과를 쉽게 인식할 수 있습니다.
-- **유연한 UI 구성:** 사용자는 UI에서 이미지를 쉽게 로드하고, 모든 필터가 적용된 미리보기 이미지를 한 번에 볼 수 있도록 설계되었습니다.
+### 1. FilterApplicationTool
+고급 이미지 필터링 도구로, 다양한 필터를 실시간으로 적용하고 비교할 수 있습니다.
 
+#### 핵심 기능:
+- **다중 필터 미리보기**: 10가지 필터를 동시에 비교
+- **실시간 강도 조절**: 슬라이더를 통한 필터 강도 실시간 조절
+- **필터 블렌딩**: 원본과 필터링된 이미지의 자연스러운 블렌딩
 
-## 설치 및 사용 방법
+```python
+# 필터 강도 조절 예시
+def blend_with_original(self, original, filtered, intensity):
+    if len(filtered.shape) == 2:
+        filtered = cv2.cvtColor(filtered, cv2.COLOR_GRAY2BGR)
+    return cv2.addWeighted(original, 1 - intensity, filtered, intensity, 0)
+```
 
-1. 이 리포지토리를 클론합니다.
-    ```bash
-    git clone https://github.com/username/VisionDefectToolkit.git
-    ```
-2. 필요한 패키지를 설치합니다.
-    ```bash
-    pip install -r requirements.txt
-    ```
-3. `ImageViewerApp.py` 또는 `DetectionViewer.py`를 실행하여 결함 검출을 위한 전처리 및 시각화 기능을 사용합니다.
+### 2. ImageViewerTool
+YOLO 기반 결함 검출 및 이미지 전처리 도구입니다.
 
-## TODO
-- 여러 필터 적용 결과를 동시에 보여주는 UI 프로그램 제작 (예정)
-- 사용자로부터 입력받은 이미지에 다양한 필터를 적용하여 최적의 전처리 필터 선택을 지원하는 인터페이스 추가
-- requirements.txt 생성
+#### 핵심 기능:
+- **실시간 결함 검출**: YOLO 모델을 통한 실시간 결함 감지
+- **다양한 전처리 옵션**: CLAHE, Gaussian Blur, Canny Edge 등
+- **Ground Truth 비교**: 예측 결과와 실제 라벨 비교 분석
+
+## 🎯 사용 예시
+
+### FilterApplicationTool
+![Filter Application Example](filter_application_example.png)
+*다양한 필터를 적용한 결함 이미지 분석 예시*
+
+필터 종류:
+- Original
+- Bandpass Filter
+- Gabor Filter
+- Laplacian
+- Sobel (X/Y)
+- Scharr (X/Y)
+- Prewitt
+- Canny Edge
+
+## 💻 설치 방법
+
+1. 저장소 클론
+```bash
+git clone https://github.com/username/VisionDefectToolkit.git
+```
+
+2. 의존성 설치
+```bash
+pip install -r requirements.txt
+```
+
+3. 실행
+```bash
+python FilterApplicationTool/main.py
+# 또는
+python ImageViewerTool/ImageViewer_preprocess_v0.1.py
+```

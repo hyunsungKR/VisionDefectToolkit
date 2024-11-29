@@ -6,28 +6,36 @@ from PIL import Image
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtWidgets import QFileDialog
 import os
+from filters.edge_filters import (
+    LaplacianFilter, SobelFilter, ScharrFilter,
+    PrewittFilter, CannyFilter
+)
+from filters.frequency_filters import BandpassFilter, GaborFilter
 
 class FilterApplicationModel:
     def __init__(self):
-        self.original_images = []  # List of original OpenCV images
-        self.filtered_images = []  # List of tuples: (original_index, filter_name, filtered_image)
-        self.main_image = None     # Currently selected OpenCV image
+        self.original_images = []
+        self.filtered_images = []
+        self.main_image = None
         self.main_filter = "Original"
         self.filter_intensity = 1.0
+        
+        # 필터 객체들 초기화
         self.filters = {
-            "Original": self.show_original,
-            "Bandpass Filter": self.apply_bandpass_filter,
-            "Gabor Filter": self.apply_gabor_filter,
-            "Laplacian": self.apply_laplacian,
-            "Sobel X": self.apply_sobel_x,
-            "Sobel Y": self.apply_sobel_y,
-            "Scharr X": self.apply_scharr_x,
-            "Scharr Y": self.apply_scharr_y,
-            "Prewitt": self.apply_prewitt,
-            "Canny Edge": self.apply_canny,
+            "Original": None,
+            "Bandpass Filter": BandpassFilter(),
+            "Gabor Filter": GaborFilter(),
+            "Laplacian": LaplacianFilter(),
+            "Sobel X": SobelFilter('x'),
+            "Sobel Y": SobelFilter('y'),
+            "Scharr X": ScharrFilter('x'),
+            "Scharr Y": ScharrFilter('y'),
+            "Prewitt": PrewittFilter(),
+            "Canny Edge": CannyFilter()
         }
+        
         self.filter_intensities = {name: 1.0 for name in self.filters}
-
+    
     def load_images(self, from_directory=False):
         """Load images either individually or from a directory."""
         if from_directory:
@@ -91,16 +99,15 @@ class FilterApplicationModel:
         """Update the intensity for the current main filter and reapply it."""
         self.filter_intensity = intensity
         self.filter_intensities[self.main_filter] = intensity
-
-        # Apply current filter with new intensity
-        filtered = self.apply_filter(self.main_filter, self.main_image, self.filter_intensity)
-        if filtered is not None:
-            # Update the filtered_images list
-            for idx, (orig_idx, fname, _) in enumerate(self.filtered_images):
-                if orig_idx == self.original_images.index(self.main_image) and fname == self.main_filter:
-                    self.filtered_images[idx] = (orig_idx, fname, filtered)
-                    break
-            return self.convert_cv_qt(filtered)
+        
+        if self.main_image is not None:
+            filtered = self.apply_filter(self.main_filter, self.main_image, intensity)
+            if filtered is not None:
+                for idx, (orig_idx, fname, _) in enumerate(self.filtered_images):
+                    if orig_idx == self.original_images.index(self.main_image) and fname == self.main_filter:
+                        self.filtered_images[idx] = (orig_idx, fname, filtered)
+                        break
+                return self.convert_cv_qt(filtered)
         return None
 
     def apply_main_filter(self):
@@ -112,9 +119,13 @@ class FilterApplicationModel:
 
     def apply_filter(self, filter_name, image, intensity=1.0):
         """Apply a specific filter to the image."""
-        filter_func = self.filters.get(filter_name, self.show_original)
-        filtered = filter_func(image, intensity)
-        return filtered
+        if filter_name == "Original":
+            return image.copy()
+            
+        filter_obj = self.filters.get(filter_name)
+        if filter_obj:
+            return filter_obj.apply(image, intensity)
+        return image.copy()
 
     def convert_cv_qt(self, cv_img):
         """Convert OpenCV image to QPixmap."""
@@ -127,96 +138,3 @@ class FilterApplicationModel:
             bytes_per_line = ch * w
             q_image = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
         return QPixmap.fromImage(q_image)
-
-    # Filter Definitions
-    def show_original(self, image, intensity=1.0):
-        return image
-
-    def apply_bandpass_filter(self, image, intensity=1.0):
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        dft = cv2.dft(np.float32(gray), flags=cv2.DFT_COMPLEX_OUTPUT)
-        dft_shift = np.fft.fftshift(dft)
-        rows, cols = gray.shape
-        crow, ccol = rows // 2, cols // 2
-        mask = np.zeros((rows, cols, 2), np.uint8)
-        radius_outer, radius_inner = int(60 * intensity), int(10 * intensity)
-
-        # Ensure radii are odd and <=31
-        radius_outer = max(1, min(radius_outer, 31))
-        if radius_outer % 2 == 0:
-            radius_outer += 1
-        radius_inner = max(1, min(radius_inner, 31))
-        if radius_inner % 2 == 0:
-            radius_inner += 1
-
-        cv2.circle(mask, (ccol, crow), radius_outer, (1, 1), -1)
-        cv2.circle(mask, (ccol, crow), radius_inner, (0, 0), -1)
-        fshift = dft_shift * mask
-        f_ishift = np.fft.ifftshift(fshift)
-        img_back = cv2.idft(f_ishift)
-        img_back = cv2.magnitude(img_back[:, :, 0], img_back[:, :, 1])
-        return cv2.normalize(img_back, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-
-    def apply_gabor_filter(self, image, intensity=1.0):
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        ksize = int(21 * intensity)
-        if ksize % 2 == 0:
-            ksize += 1
-        ksize = min(ksize, 31)  # Limit ksize to 31
-        gabor_kernel = cv2.getGaborKernel((ksize, ksize), 8.0, np.pi/4, 10.0 * intensity, 0.5, 0)
-        filtered = cv2.filter2D(gray, cv2.CV_8UC3, gabor_kernel)
-        return cv2.convertScaleAbs(filtered)
-
-    def apply_laplacian(self, image, intensity=1.0):
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        ksize = int(1 + 2 * intensity)
-        if ksize % 2 == 0:
-            ksize += 1
-        ksize = min(ksize, 31)  # Limit ksize to 31
-        laplacian = cv2.Laplacian(gray, cv2.CV_64F, ksize=ksize)
-        return cv2.convertScaleAbs(laplacian)
-
-    def apply_sobel_x(self, image, intensity=1.0):
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        ksize = int(1 + 2 * intensity)
-        if ksize % 2 == 0:
-            ksize += 1
-        ksize = min(ksize, 31)  # Limit ksize to 31
-        sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=ksize)
-        return cv2.convertScaleAbs(sobelx)
-
-    def apply_sobel_y(self, image, intensity=1.0):
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        ksize = int(1 + 2 * intensity)
-        if ksize % 2 == 0:
-            ksize += 1
-        ksize = min(ksize, 31)  # Limit ksize to 31
-        sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=ksize)
-        return cv2.convertScaleAbs(sobely)
-
-    def apply_scharr_x(self, image, intensity=1.0):
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        # Scharr uses a fixed kernel size of 3
-        scharrx = cv2.Scharr(gray, cv2.CV_64F, 1, 0)
-        return cv2.convertScaleAbs(scharrx * intensity)
-
-    def apply_scharr_y(self, image, intensity=1.0):
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        scharry = cv2.Scharr(gray, cv2.CV_64F, 0, 1)
-        return cv2.convertScaleAbs(scharry * intensity)
-
-    def apply_prewitt(self, image, intensity=1.0):
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        kernelx = np.array([[1, 0, -1], [1, 0, -1], [1, 0, -1]], dtype=np.float32) * intensity
-        kernely = np.array([[1, 1, 1], [0, 0, 0], [-1, -1, -1]], dtype=np.float32) * intensity
-        processed_x = cv2.filter2D(gray, cv2.CV_32F, kernelx)
-        processed_y = cv2.filter2D(gray, cv2.CV_32F, kernely)
-        processed = cv2.magnitude(processed_x, processed_y)
-        return cv2.convertScaleAbs(processed)
-
-    def apply_canny(self, image, intensity=1.0):
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        threshold1 = int(50 * intensity)
-        threshold2 = int(150 * intensity)
-        canny = cv2.Canny(gray, threshold1, threshold2)
-        return cv2.cvtColor(canny, cv2.COLOR_GRAY2BGR)
